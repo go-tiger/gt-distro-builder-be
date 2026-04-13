@@ -4,6 +4,6 @@ import { DistributionController } from './distribution.controller';
 
 @Module({
   providers: [DistributionService],
-  controllers: [DistributionController]
+  controllers: [DistributionController],
 })
 export class DistributionModule {}
