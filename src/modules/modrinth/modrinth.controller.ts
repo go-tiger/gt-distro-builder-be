@@ -1,4 +1,13 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
+import { ModrinthService } from './modrinth.service';
+import { SearchModDto } from '../../common/dto/search-mod.dto';
 
 @Controller('modrinth')
-export class ModrinthController {}
+export class ModrinthController {
+  constructor(private readonly modrinthService: ModrinthService) {}
+
+  @Get('search')
+  async search(@Query() searchDto: SearchModDto) {
+    return this.modrinthService.searchMods(searchDto);
+  }
+}
