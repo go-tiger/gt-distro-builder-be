@@ -5,5 +5,6 @@ import { ModrinthController } from './modrinth.controller';
 @Module({
   providers: [ModrinthService],
   controllers: [ModrinthController],
+  exports: [ModrinthService],
 })
 export class ModrinthModule {}
