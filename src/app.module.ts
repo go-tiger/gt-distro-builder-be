@@ -1,13 +1,20 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { typeOrmAsyncConfig } from './config/typeorm.config';
 import { ModrinthModule } from './modules/modrinth/modrinth.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { DistributionModule } from './modules/distribution/distribution.module';
 
 @Module({
-  imports: [ModrinthModule, CacheModule, DistributionModule],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    TypeOrmModule.forRootAsync(typeOrmAsyncConfig),
+    ModrinthModule,
+    CacheModule,
+    DistributionModule,
+  ],
 })
 export class AppModule {}
