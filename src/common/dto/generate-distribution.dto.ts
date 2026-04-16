@@ -13,6 +13,9 @@ export class SelectedModDto {
   slug: string;
 
   @IsString()
+  name: string;
+
+  @IsString()
   version: string;
 
   @IsBoolean()

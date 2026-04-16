@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { ModrinthService } from '../modrinth/modrinth.service';
 import { GenerateDistributionDto } from '../../common/dto/generate-distribution.dto';
+import { ModLoader } from '../../common/dto/search-mod.dto';
 import { ModrinthFile } from '../../common/types/modrinth.types';
 
 @Injectable()
@@ -33,10 +34,15 @@ export class DistributionService {
         version.files.find((f) => f.primary) ?? version.files[0];
       const md5 = await this.calculateMD5(file.url);
 
+      const loaderPrefix =
+        dto.loader === ModLoader.FABRIC ? 'fabricmod' : 'forgemod';
+      const modType =
+        dto.loader === ModLoader.FABRIC ? 'FabricMod' : 'ForgeMod';
+
       modules.push({
-        id: `${mod.slug}@${version.version_number}`,
-        name: version.name,
-        type: 'ForgeMod',
+        id: `generated.${loaderPrefix}:${mod.slug}:${version.version_number}@jar`,
+        name: mod.name,
+        type: modType,
         artifact: {
           size: file.size,
           MD5: md5,
