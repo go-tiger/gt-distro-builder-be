@@ -5,6 +5,8 @@ import { typeOrmAsyncConfig } from './config/typeorm.config';
 import { ModrinthModule } from './modules/modrinth/modrinth.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { DistributionModule } from './modules/distribution/distribution.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { DistributionModule } from './modules/distribution/distribution.module';
     ModrinthModule,
     CacheModule,
     DistributionModule,
+    AuthModule,
+    UsersModule,
   ],
 })
 export class AppModule {}
