@@ -1,0 +1,26 @@
+import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { UsersService } from '../users/users.service';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+
+@Controller('/api/auth')
+export class AuthController {
+  constructor(
+    private authService: AuthService,
+    private usersService: UsersService,
+  ) {}
+
+  @Post('login')
+  async login(@Body() body: { username: string; password: string }) {
+    return this.authService.login(body.username, body.password);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMe(@Body() user: any) {
+    const userData = await this.usersService.findById(user.id);
+    const { password, ...rest } = userData;
+    const remainingQuota = userData.quota === -1 ? '무제한' : userData.quota - userData.usedCount;
+    return { ...rest, remainingQuota };
+  }
+}
