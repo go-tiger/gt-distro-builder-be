@@ -15,6 +15,13 @@ export class AuthController {
     return this.authService.login(body.username, body.password);
   }
 
+  @Post('register')
+  async register(@Body() body: { username: string; password: string }) {
+    const user = await this.usersService.create(body.username, body.password, 'user');
+    const { password, ...rest } = user;
+    return rest;
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async getMe(@Body() user: any) {
