@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, NotFoundException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -26,6 +26,11 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async getMe(@Body() user: any) {
     const userData = await this.usersService.findById(user.id);
+
+    if (!userData) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다');
+    }
+
     const { password, ...rest } = userData;
     const remainingQuota = userData.quota === -1 ? '무제한' : userData.quota - userData.usedCount;
     return { ...rest, remainingQuota };

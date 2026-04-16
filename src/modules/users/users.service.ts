@@ -51,6 +51,9 @@ export class UsersService {
 
   async incrementUsedCount(id: string) {
     const user = await this.findById(id);
+    if (!user) {
+      throw new BadRequestException('사용자를 찾을 수 없습니다');
+    }
     return this.usersRepository.update(id, { usedCount: user.usedCount + 1 });
   }
 
