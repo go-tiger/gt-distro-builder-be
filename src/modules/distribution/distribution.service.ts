@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { ModrinthService } from '../modrinth/modrinth.service';
+import { CacheService } from '../cache/cache.service';
 import { GenerateDistributionDto } from '../../common/dto/generate-distribution.dto';
 import { ModLoader } from '../../common/dto/search-mod.dto';
 import { ModrinthFile } from '../../common/types/modrinth.types';
 
 @Injectable()
 export class DistributionService {
-  constructor(private modrinthService: ModrinthService) {}
+  constructor(
+    private modrinthService: ModrinthService,
+    private cacheService: CacheService,
+  ) {}
 
   async generateDistribution(dto: GenerateDistributionDto) {
     const modules: {
@@ -19,19 +23,36 @@ export class DistributionService {
     }[] = [];
 
     for (const mod of dto.mods) {
-      const versions = await this.modrinthService.getModVersions(
+      let cachedData = await this.cacheService.get(
         mod.slug,
         dto.loader,
         dto.minecraftVersion,
       );
+      let versions = cachedData ? (cachedData as any) : null;
+
+      if (!versions) {
+        versions = await this.modrinthService.getModVersions(
+          mod.slug,
+          dto.loader,
+          dto.minecraftVersion,
+        );
+        if (versions) {
+          await this.cacheService.set(
+            mod.slug,
+            dto.loader,
+            dto.minecraftVersion,
+            versions as any,
+          );
+        }
+      }
 
       if (!versions || versions.length === 0) {
         throw new Error(`No version found for mod: ${mod.slug}`);
       }
 
-      const version = versions[0];
+      const version = versions[0] as any;
       const file: ModrinthFile =
-        version.files.find((f) => f.primary) ?? version.files[0];
+        version.files.find((f: any) => f.primary) ?? version.files[0];
       const md5 = await this.calculateMD5(file.url);
 
       const loaderPrefix =
