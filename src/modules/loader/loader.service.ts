@@ -50,4 +50,42 @@ export class LoaderService {
       return [];
     }
   }
+
+  async getNeoForgeVersions(mcVersion: string): Promise<string[]> {
+    try {
+      const res = await fetch('https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml');
+      const text = await res.text();
+
+      const versionRegex = /<version>([^<]+)<\/version>/g;
+      const allVersions: string[] = [];
+      let match: RegExpExecArray | null;
+
+      // mcVersion에서 앞자리 제거: "1.21.1" → "21.1."
+      const prefix = mcVersion.split('.').slice(1).join('.') + '.';
+
+      while ((match = versionRegex.exec(text)) !== null) {
+        const version = match[1];
+        if (version.startsWith(prefix)) {
+          allVersions.push(version);
+        }
+      }
+
+      // 역순 정렬
+      allVersions.sort((a, b) => {
+        const aParts = a.split('.').map(Number);
+        const bParts = b.split('.').map(Number);
+        for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+          const aVal = aParts[i] || 0;
+          const bVal = bParts[i] || 0;
+          if (aVal !== bVal) return bVal - aVal;
+        }
+        return 0;
+      });
+
+      return allVersions;
+    } catch (error) {
+      console.error(`[LoaderService] NeoForge 버전 조회 오류 (${mcVersion}):`, error);
+      return [];
+    }
+  }
 }

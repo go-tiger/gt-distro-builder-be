@@ -9,4 +9,9 @@ export class LoaderController {
   async getForgeVersions(@Param('mcVersion') mcVersion: string) {
     return this.loaderService.getForgeVersions(mcVersion);
   }
+
+  @Get('neoforge/:mcVersion')
+  async getNeoForgeVersions(@Param('mcVersion') mcVersion: string) {
+    return this.loaderService.getNeoForgeVersions(mcVersion);
+  }
 }

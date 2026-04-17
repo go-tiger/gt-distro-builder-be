@@ -23,24 +23,33 @@ export class DistributionService {
   async generateDistribution(dto: GenerateDistributionDto) {
     const workspaceId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const workspaceDir = path.join(this.nebulaRoot, workspaceId);
+    const logFile = path.join(workspaceDir, 'debug.log');
+    const log = (...args: any[]) => {
+      const line = args.map(a => (typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a))).join(' ');
+      console.log(line);
+      try { fs.appendFileSync(logFile, line + '\n'); } catch {}
+    };
 
     try {
-      console.log(`[Nebula] 워크스페이스 생성: ${workspaceDir}`);
       fs.mkdirSync(workspaceDir, { recursive: true });
+      log(`[Nebula] 워크스페이스 생성: ${workspaceDir}`);
 
       const envFilePath = path.join(workspaceDir, '.env');
       const envContent = this._generateEnvFile(workspaceDir, dto);
       fs.writeFileSync(envFilePath, envContent);
-      console.log(`[Nebula] .env 파일 생성 완료`);
+      log(`[Nebula] .env 파일 생성 완료`);
 
       await this._executeNebula('init', 'root', workspaceDir);
-      console.log(`[Nebula] init root 완료`);
+      log(`[Nebula] init root 완료`);
 
-      const loaderFlag = dto.loader === 'fabric' ? '--fabric' : '--forge';
-      // Forge 버전 형식: "1.21.1-52.1.14" → "52.1.14"만 추출
-      // Fabric 버전 형식: "0.19.2" (이미 올바름)
+      let loaderFlag: string;
       let loaderVersionArg = dto.loaderVersion;
-      if (dto.loader === 'forge') {
+      if (dto.loader === 'fabric') {
+        loaderFlag = '--fabric';
+      } else if (dto.loader === 'neoforge') {
+        loaderFlag = '--neoforge';
+      } else {
+        loaderFlag = '--forge';
         const parts = dto.loaderVersion.split('-');
         loaderVersionArg = parts.slice(1).join('-');
       }
@@ -54,33 +63,31 @@ export class DistributionService {
         loaderVersionArg,
         workspaceDir,
       );
-      console.log(`[Nebula] generate server 완료`);
+      log(`[Nebula] generate server 완료`);
 
-      const loaderFolderName = dto.loader === 'fabric' ? 'fabricmods' : 'forgemods';
+      const loaderFolderName = dto.loader === 'fabric' ? 'fabricmods' : dto.loader === 'neoforge' ? 'neoforgemods' : 'forgemods';
       const fileUrlMap = await this._downloadMods(workspaceDir, loaderFolderName, dto.mods, dto.loader, dto.minecraftVersion, dto.serverId);
-      console.log(`[Nebula] 모드 다운로드 완료`);
+      log(`[Nebula] 모드 다운로드 완료`);
 
       this._generateMetaFiles(workspaceDir, dto);
-      console.log(`[Nebula] meta 파일 생성 완료`);
+      log(`[Nebula] meta 파일 생성 완료`);
 
       await this._executeNebula('generate', 'distro', workspaceDir);
-      console.log(`[Nebula] generate distro 완료`);
+      log(`[Nebula] generate distro 완료`);
 
       const distroPath = path.join(workspaceDir, 'distribution.json');
-      console.log(`[Nebula] 경로: ${distroPath}`);
-      console.log(`[Nebula] 파일 존재: ${fs.existsSync(distroPath)}`);
+      log(`[Nebula] 경로: ${distroPath}`);
+      log(`[Nebula] 파일 존재: ${fs.existsSync(distroPath)}`);
 
       if (!fs.existsSync(distroPath)) {
-        const files = fs.readdirSync(workspaceDir, { recursive: true });
-        console.log(`[Nebula] 워크스페이스 파일:`, files);
         throw new Error(`distribution.json을 찾을 수 없습니다`);
       }
 
       const distribution = JSON.parse(fs.readFileSync(distroPath, 'utf-8'));
-      console.log(`[Nebula] distribution.json 파싱 완료`);
+      log(`[Nebula] distribution.json 파싱 완료`);
 
-      await this._replaceModUrlsWithModrinth(distribution, dto.mods, fileUrlMap);
-      console.log(`[Nebula] URL 변환 완료`);
+      await this._replaceModUrlsWithModrinth(distribution, dto.mods, fileUrlMap, log);
+      log(`[Nebula] URL 변환 완료`);
 
       return distribution;
     } catch (error) {
@@ -164,6 +171,7 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
     distribution: any,
     mods: Array<{ slug: string; name: string; version: string; required: boolean; option?: string }>,
     fileUrlMap: Map<string, string>,
+    log: (...args: any[]) => void = console.log,
   ): Promise<void> {
     if (!distribution.servers || distribution.servers.length === 0) return;
 
@@ -178,7 +186,7 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
           const modrinthUrl = fileUrlMap.get(fileName);
           if (modrinthUrl) {
             module.artifact.url = modrinthUrl;
-            console.log(`[Nebula] 모드 URL 변환: ${fileName} → ${modrinthUrl}`);
+            log(`[Nebula] 모드 URL 변환: ${fileName} → ${modrinthUrl}`);
           } else {
             // fallback: Modrinth API로 slug 매칭 시도
             const modEntry = Array.from(mods).find(m => module.id.includes(m.slug));
@@ -192,7 +200,7 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
                 );
                 if (targetVersion?.files?.[0]?.url) {
                   module.artifact.url = targetVersion.files[0].url;
-                  console.log(`[Nebula] 모드 URL 변환: ${modEntry.slug} → ${module.artifact.url}`);
+                  log(`[Nebula] 모드 URL 변환: ${modEntry.slug} → ${module.artifact.url}`);
                 }
               } catch (error) {
                 console.error(`[Nebula] 모드 URL 변환 오류 (${modEntry.slug}):`, error);
@@ -212,39 +220,45 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
           }
         }
 
-        // ForgeHosted 로더 메인 artifact → maven.minecraftforge.net
+        // ForgeHosted 로더 메인 artifact
         if (module.type === 'ForgeHosted') {
           if (module.artifact?.url?.includes('localhost')) {
             const url = module.artifact.url;
             if (url.includes('/repo/lib/')) {
-              module.artifact.url = `https://maven.minecraftforge.net/${url.split('/repo/lib/')[1]}`;
+              const libPath = url.split('/repo/lib/')[1];
+              const isNeoForge = (module.id as string).includes('net.neoforged');
+              module.artifact.url = isNeoForge
+                ? `https://maven.neoforged.net/releases/${libPath}`
+                : `https://maven.minecraftforge.net/${libPath}`;
             }
           }
         }
 
         // 서브모듈 변환
         if (module.subModules) {
+          const isNeoForge = module.type === 'ForgeHosted' && (module.id as string).includes('net.neoforged');
+
           for (const subModule of module.subModules) {
             if (!subModule.artifact?.url?.includes('localhost')) continue;
             const url = subModule.artifact.url;
 
             if (module.type === 'Fabric') {
-              // Fabric 서브모듈 → maven.fabricmc.net
               if (url.includes('/repo/lib/')) {
                 subModule.artifact.url = `https://maven.fabricmc.net/${url.split('/repo/lib/')[1]}`;
               } else if (url.includes('/repo/versions/')) {
                 subModule.artifact.url = `https://maven.fabricmc.net/${url.split('/repo/versions/')[1]}`;
               }
             } else if (module.type === 'ForgeHosted') {
-              // Forge 서브모듈 → maven.minecraftforge.net
               if (url.includes('/repo/lib/')) {
-                subModule.artifact.url = `https://maven.minecraftforge.net/${url.split('/repo/lib/')[1]}`;
-              } else if (url.includes('/repo/versions/')) {
-                subModule.artifact.url = `https://maven.minecraftforge.net/${url.split('/repo/versions/')[1]}`;
+                const libPath = url.split('/repo/lib/')[1];
+                subModule.artifact.url = isNeoForge
+                  ? `https://maven.neoforged.net/releases/${libPath}`
+                  : `https://maven.minecraftforge.net/${libPath}`;
               }
+              // /repo/versions/ (VersionManifest)는 변환하지 않음 - Helios 서버가 직접 서빙
             }
 
-            console.log(`[Nebula] 서브모듈 URL 변환: ${subModule.id} → ${subModule.artifact.url}`);
+            log(`[Nebula] 서브모듈 URL 변환: ${subModule.id} → ${subModule.artifact.url}`);
           }
         }
       }
