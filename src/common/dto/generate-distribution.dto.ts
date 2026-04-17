@@ -20,6 +20,9 @@ export class SelectedModDto {
 
   @IsBoolean()
   required: boolean;
+
+  @IsString()
+  option?: string;
 }
 
 export class GenerateDistributionDto {
@@ -34,6 +37,9 @@ export class GenerateDistributionDto {
 
   @IsEnum(ModLoader)
   loader: ModLoader;
+
+  @IsString()
+  loaderVersion: string;
 
   @IsArray()
   @ValidateNested({ each: true })
