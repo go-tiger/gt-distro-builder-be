@@ -7,6 +7,7 @@ import { CacheModule } from './modules/cache/cache.module';
 import { DistributionModule } from './modules/distribution/distribution.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { LoaderModule } from './modules/loader/loader.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UsersModule } from './modules/users/users.module';
     DistributionModule,
     AuthModule,
     UsersModule,
+    LoaderModule,
   ],
 })
 export class AppModule {}
