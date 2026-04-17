@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
-@Controller('/api/auth')
+@Controller('auth')
 export class AuthController {
   constructor(
     private authService: AuthService,
