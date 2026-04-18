@@ -63,9 +63,11 @@ export class LoaderService {
       // mcVersion에서 앞자리 제거: "1.21.1" → "21.1."
       const prefix = mcVersion.split('.').slice(1).join('.') + '.';
 
+      const excluded = ['20.2.89', '20.2.90', '20.2.91', '20.2.92'];
+
       while ((match = versionRegex.exec(text)) !== null) {
         const version = match[1];
-        if (version.startsWith(prefix)) {
+        if (version.startsWith(prefix) && !excluded.includes(version)) {
           allVersions.push(version);
         }
       }
