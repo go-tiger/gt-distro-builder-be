@@ -1,4 +1,11 @@
-import { Controller, Post, Body, UseGuards, BadRequestException, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  BadRequestException,
+  Req,
+} from '@nestjs/common';
 import { DistributionService } from './distribution.service';
 import { GenerateDistributionDto } from '../../common/dto/generate-distribution.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -13,7 +20,10 @@ export class DistributionController {
 
   @Post('generate')
   @UseGuards(JwtAuthGuard)
-  async generate(@Body() generateDto: GenerateDistributionDto, @Req() req: any) {
+  async generate(
+    @Body() generateDto: GenerateDistributionDto,
+    @Req() req: any,
+  ) {
     const user = req.user;
     const userData = await this.usersService.findById(user.id);
 
@@ -25,7 +35,8 @@ export class DistributionController {
       throw new BadRequestException('사용 횟수를 초과하였습니다');
     }
 
-    const result = await this.distributionService.generateDistribution(generateDto);
+    const result =
+      await this.distributionService.generateDistribution(generateDto);
     await this.usersService.incrementUsedCount(user.id);
 
     return result;

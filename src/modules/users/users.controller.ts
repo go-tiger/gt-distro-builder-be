@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -11,8 +19,19 @@ export class UsersController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  async create(@Body() body: { username: string; password: string; role?: 'admin' | 'user' }) {
-    const user = await this.usersService.create(body.username, body.password, body.role);
+  async create(
+    @Body()
+    body: {
+      username: string;
+      password: string;
+      role?: 'admin' | 'user';
+    },
+  ) {
+    const user = await this.usersService.create(
+      body.username,
+      body.password,
+      body.role,
+    );
     const { password, ...rest } = user;
     return rest;
   }
@@ -35,7 +54,10 @@ export class UsersController {
   @Patch(':id/active')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  async setActive(@Param('id') id: string, @Body() body: { isActive: boolean }) {
+  async setActive(
+    @Param('id') id: string,
+    @Body() body: { isActive: boolean },
+  ) {
     await this.usersService.setActive(id, body.isActive);
     return { success: true };
   }

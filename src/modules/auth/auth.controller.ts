@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Get, UseGuards, NotFoundException, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  NotFoundException,
+  Req,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -17,7 +25,11 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() body: { username: string; password: string }) {
-    const user = await this.usersService.create(body.username, body.password, 'user');
+    const user = await this.usersService.create(
+      body.username,
+      body.password,
+      'user',
+    );
     const { password, ...rest } = user;
     return rest;
   }
@@ -33,7 +45,8 @@ export class AuthController {
     }
 
     const { password, ...rest } = userData;
-    const remainingQuota = userData.quota === -1 ? '무제한' : userData.quota - userData.usedCount;
+    const remainingQuota =
+      userData.quota === -1 ? '무제한' : userData.quota - userData.usedCount;
     return { ...rest, remainingQuota };
   }
 }

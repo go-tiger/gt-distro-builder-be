@@ -16,8 +16,14 @@ export class DistributionService {
     private configService: ConfigService,
     private modrinthService: ModrinthService,
   ) {
-    this.nebulaCli = this.configService.get<string>('NEBULA_CLI_PATH', '/app/nebula/dist/index.js');
-    this.nebulaRoot = this.configService.get<string>('NEBULA_WORKSPACE_PATH', path.join(os.tmpdir(), 'nebula-workspace'));
+    this.nebulaCli = this.configService.get<string>(
+      'NEBULA_CLI_PATH',
+      '/app/nebula/dist/index.js',
+    );
+    this.nebulaRoot = this.configService.get<string>(
+      'NEBULA_WORKSPACE_PATH',
+      path.join(os.tmpdir(), 'nebula-workspace'),
+    );
   }
 
   async generateDistribution(dto: GenerateDistributionDto) {
@@ -25,9 +31,15 @@ export class DistributionService {
     const workspaceDir = path.join(this.nebulaRoot, workspaceId);
     const logFile = path.join(workspaceDir, 'debug.log');
     const log = (...args: any[]) => {
-      const line = args.map(a => (typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a))).join(' ');
+      const line = args
+        .map((a) =>
+          typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a),
+        )
+        .join(' ');
       console.log(line);
-      try { fs.appendFileSync(logFile, line + '\n'); } catch {}
+      try {
+        fs.appendFileSync(logFile, line + '\n');
+      } catch {}
     };
 
     try {
@@ -65,8 +77,20 @@ export class DistributionService {
       );
       log(`[Nebula] generate server 완료`);
 
-      const loaderFolderName = dto.loader === 'fabric' ? 'fabricmods' : dto.loader === 'neoforge' ? 'neoforgemods' : 'forgemods';
-      const fileUrlMap = await this._downloadMods(workspaceDir, loaderFolderName, dto.mods, dto.loader, dto.minecraftVersion, dto.serverId);
+      const loaderFolderName =
+        dto.loader === 'fabric'
+          ? 'fabricmods'
+          : dto.loader === 'neoforge'
+            ? 'neoforgemods'
+            : 'forgemods';
+      const fileUrlMap = await this._downloadMods(
+        workspaceDir,
+        loaderFolderName,
+        dto.mods,
+        dto.loader,
+        dto.minecraftVersion,
+        dto.serverId,
+      );
       log(`[Nebula] 모드 다운로드 완료`);
 
       this._generateMetaFiles(workspaceDir, dto);
@@ -86,7 +110,12 @@ export class DistributionService {
       const distribution = JSON.parse(fs.readFileSync(distroPath, 'utf-8'));
       log(`[Nebula] distribution.json 파싱 완료`);
 
-      await this._replaceModUrlsWithModrinth(distribution, dto.mods, fileUrlMap, log);
+      await this._replaceModUrlsWithModrinth(
+        distribution,
+        dto.mods,
+        fileUrlMap,
+        log,
+      );
       log(`[Nebula] URL 변환 완료`);
 
       return distribution;
@@ -104,16 +133,27 @@ export class DistributionService {
   private async _downloadMods(
     workspaceDir: string,
     loaderFolderName: string,
-    mods: Array<{ slug: string; name: string; version: string; required: boolean; option?: string }>,
+    mods: Array<{
+      slug: string;
+      name: string;
+      version: string;
+      required: boolean;
+      option?: string;
+    }>,
     loader: string,
     minecraftVersion: string,
     serverId: string,
   ): Promise<Map<string, string>> {
-    const baseModsDir = path.join(workspaceDir, 'servers', `${serverId}-${minecraftVersion}`, loaderFolderName);
+    const baseModsDir = path.join(
+      workspaceDir,
+      'servers',
+      `${serverId}-${minecraftVersion}`,
+      loaderFolderName,
+    );
     fs.mkdirSync(baseModsDir, { recursive: true });
 
     const optionMap: Record<string, string> = {
-      'required': 'required',
+      required: 'required',
       'optional-on': 'optionalon',
       'optional-off': 'optionaloff',
     };
@@ -123,11 +163,23 @@ export class DistributionService {
 
     for (const mod of mods) {
       try {
-        const versions = await this.modrinthService.getModVersions(mod.slug, loader, minecraftVersion);
-        const targetVersion = versions.find(v => v.version_number === mod.version);
+        const versions = await this.modrinthService.getModVersions(
+          mod.slug,
+          loader,
+          minecraftVersion,
+        );
+        const targetVersion = versions.find(
+          (v) => v.version_number === mod.version,
+        );
 
-        if (!targetVersion || !targetVersion.files || targetVersion.files.length === 0) {
-          console.warn(`[Nebula] 모드를 찾을 수 없음: ${mod.slug} ${mod.version}`);
+        if (
+          !targetVersion ||
+          !targetVersion.files ||
+          targetVersion.files.length === 0
+        ) {
+          console.warn(
+            `[Nebula] 모드를 찾을 수 없음: ${mod.slug} ${mod.version}`,
+          );
           continue;
         }
 
@@ -137,7 +189,9 @@ export class DistributionService {
 
         fileUrlMap.set(fileName, downloadUrl);
 
-        const folderName = mod.option ? optionMap[mod.option] || 'required' : 'required';
+        const folderName = mod.option
+          ? optionMap[mod.option] || 'required'
+          : 'required';
         const modFolder = path.join(baseModsDir, folderName);
         fs.mkdirSync(modFolder, { recursive: true });
 
@@ -159,8 +213,14 @@ export class DistributionService {
     return fileUrlMap;
   }
 
-  private _generateEnvFile(workspaceDir: string, dto: GenerateDistributionDto): string {
-    const javaExecutable = this.configService.get<string>('JAVA_EXECUTABLE', 'java');
+  private _generateEnvFile(
+    workspaceDir: string,
+    dto: GenerateDistributionDto,
+  ): string {
+    const javaExecutable = this.configService.get<string>(
+      'JAVA_EXECUTABLE',
+      'java',
+    );
     return `ROOT=${workspaceDir}
 BASE_URL=http://localhost:8080/
 JAVA_EXECUTABLE=${javaExecutable}
@@ -169,7 +229,13 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
 
   private async _replaceModUrlsWithModrinth(
     distribution: any,
-    mods: Array<{ slug: string; name: string; version: string; required: boolean; option?: string }>,
+    mods: Array<{
+      slug: string;
+      name: string;
+      version: string;
+      required: boolean;
+      option?: string;
+    }>,
     fileUrlMap: Map<string, string>,
     log: (...args: any[]) => void = console.log,
   ): Promise<void> {
@@ -189,21 +255,33 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
             log(`[Nebula] 모드 URL 변환: ${fileName} → ${modrinthUrl}`);
           } else {
             // fallback: Modrinth API로 slug 매칭 시도
-            const modEntry = Array.from(mods).find(m => module.id.includes(m.slug));
+            const modEntry = Array.from(mods).find((m) =>
+              module.id.includes(m.slug),
+            );
             if (modEntry) {
               try {
-                const versions = await this.modrinthService.getModVersions(modEntry.slug, '', '');
-                const targetVersion = versions.find(v =>
-                  v.version_number === modEntry.version ||
-                  v.version_number.endsWith(`-${modEntry.version}`) ||
-                  v.version_number.endsWith(modEntry.version)
+                const versions = await this.modrinthService.getModVersions(
+                  modEntry.slug,
+                  '',
+                  '',
+                );
+                const targetVersion = versions.find(
+                  (v) =>
+                    v.version_number === modEntry.version ||
+                    v.version_number.endsWith(`-${modEntry.version}`) ||
+                    v.version_number.endsWith(modEntry.version),
                 );
                 if (targetVersion?.files?.[0]?.url) {
                   module.artifact.url = targetVersion.files[0].url;
-                  log(`[Nebula] 모드 URL 변환: ${modEntry.slug} → ${module.artifact.url}`);
+                  log(
+                    `[Nebula] 모드 URL 변환: ${modEntry.slug} → ${module.artifact.url}`,
+                  );
                 }
               } catch (error) {
-                console.error(`[Nebula] 모드 URL 변환 오류 (${modEntry.slug}):`, error);
+                console.error(
+                  `[Nebula] 모드 URL 변환 오류 (${modEntry.slug}):`,
+                  error,
+                );
               }
             }
           }
@@ -226,7 +304,9 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
             const url = module.artifact.url;
             if (url.includes('/repo/lib/')) {
               const libPath = url.split('/repo/lib/')[1];
-              const isNeoForge = (module.id as string).includes('net.neoforged');
+              const isNeoForge = (module.id as string).includes(
+                'net.neoforged',
+              );
               module.artifact.url = isNeoForge
                 ? `https://maven.neoforged.net/releases/${libPath}`
                 : `https://maven.minecraftforge.net/${libPath}`;
@@ -236,7 +316,9 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
 
         // 서브모듈 변환
         if (module.subModules) {
-          const isNeoForge = module.type === 'ForgeHosted' && (module.id as string).includes('net.neoforged');
+          const isNeoForge =
+            module.type === 'ForgeHosted' &&
+            (module.id as string).includes('net.neoforged');
 
           for (const subModule of module.subModules) {
             if (!subModule.artifact?.url?.includes('localhost')) continue;
@@ -258,14 +340,19 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
               // /repo/versions/ (VersionManifest)는 변환하지 않음 - Helios 서버가 직접 서빙
             }
 
-            log(`[Nebula] 서브모듈 URL 변환: ${subModule.id} → ${subModule.artifact.url}`);
+            log(
+              `[Nebula] 서브모듈 URL 변환: ${subModule.id} → ${subModule.artifact.url}`,
+            );
           }
         }
       }
     }
   }
 
-  private _generateMetaFiles(workspaceDir: string, dto: GenerateDistributionDto): void {
+  private _generateMetaFiles(
+    workspaceDir: string,
+    dto: GenerateDistributionDto,
+  ): void {
     const metaDir = path.join(workspaceDir, 'meta');
     fs.mkdirSync(metaDir, { recursive: true });
 
@@ -310,8 +397,12 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
         env: { ...process.env, ...envVars },
       });
 
-      child.stdout.on('data', (data: Buffer) => process.stdout.write(`[Nebula stdout] ${label}: ${data}`));
-      child.stderr.on('data', (data: Buffer) => process.stdout.write(`[Nebula stderr] ${label}: ${data}`));
+      child.stdout.on('data', (data: Buffer) =>
+        process.stdout.write(`[Nebula stdout] ${label}: ${data}`),
+      );
+      child.stderr.on('data', (data: Buffer) =>
+        process.stdout.write(`[Nebula stderr] ${label}: ${data}`),
+      );
 
       child.on('close', (code) => {
         if (code === 0) {
@@ -321,7 +412,9 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
         }
       });
 
-      child.on('error', (err) => reject(new Error(`Nebula 명령 실패 (${label}): ${err.message}`)));
+      child.on('error', (err) =>
+        reject(new Error(`Nebula 명령 실패 (${label}): ${err.message}`)),
+      );
     });
   }
 
