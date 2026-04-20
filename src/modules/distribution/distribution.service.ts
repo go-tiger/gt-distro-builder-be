@@ -336,8 +336,20 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
                 subModule.artifact.url = isNeoForge
                   ? `https://maven.neoforged.net/releases/${libPath}`
                   : `https://maven.minecraftforge.net/${libPath}`;
+              } else if (isNeoForge && url.includes('/repo/versions/')) {
+                // NeoForge VersionManifest → GitHub raw
+                // url 패턴: .../repo/versions/1.21.1-neoforge-21.1.226/1.21.1-neoforge-21.1.226.json
+                const versionFolder = url.split('/repo/versions/')[1]?.split('/')[0];
+                if (versionFolder) {
+                  // "1.21.1-neoforge-21.1.226" → mcVersion="1.21.1", nfVersion="21.1.226"
+                  const neoforgeIdx = versionFolder.indexOf('-neoforge-');
+                  if (neoforgeIdx !== -1) {
+                    const mcVersion = versionFolder.substring(0, neoforgeIdx);
+                    const nfVersion = versionFolder.substring(neoforgeIdx + '-neoforge-'.length);
+                    subModule.artifact.url = `https://raw.githubusercontent.com/go-tiger/neoforge-version-manifests/main/${mcVersion}/${nfVersion}/version.json`;
+                  }
+                }
               }
-              // /repo/versions/ (VersionManifest)는 변환하지 않음 - Helios 서버가 직접 서빙
             }
 
             log(
