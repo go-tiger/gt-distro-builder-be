@@ -93,6 +93,48 @@ export class DistributionService {
       );
       log(`[Nebula] 모드 다운로드 완료`);
 
+      const serverDir = path.join(
+        workspaceDir,
+        'servers',
+        `${dto.serverId}-${dto.minecraftVersion}`,
+      );
+
+      const resourcePackSizes = await this._downloadFiles(
+        serverDir,
+        'resourcepacks',
+        dto.resourcePacks || [],
+      );
+      log(`[Nebula] 리소스팩 다운로드 완료`);
+
+      const shaderPackSizes = await this._downloadFiles(
+        serverDir,
+        'shaderpacks',
+        dto.shaderPacks || [],
+      );
+      log(`[Nebula] 쉐이더팩 다운로드 완료`);
+
+      if (dto.extraFiles && dto.extraFiles.length > 0) {
+        for (const extraFile of dto.extraFiles) {
+          try {
+            const response = await fetch(extraFile.url);
+            if (!response.ok) {
+              console.warn(`[Nebula] 파일 다운로드 실패: ${extraFile.url}`);
+              continue;
+            }
+
+            const filePath = path.join(serverDir, 'files', extraFile.path || 'file');
+            const dir = path.dirname(filePath);
+            fs.mkdirSync(dir, { recursive: true });
+
+            const buffer = await response.arrayBuffer();
+            fs.writeFileSync(filePath, Buffer.from(buffer));
+            log(`[Nebula] 기타 파일 다운로드: ${extraFile.path}`);
+          } catch (error) {
+            console.error(`[Nebula] 기타 파일 다운로드 오류:`, error);
+          }
+        }
+      }
+
       this._generateMetaFiles(workspaceDir, dto);
       log(`[Nebula] meta 파일 생성 완료`);
 
@@ -117,6 +159,17 @@ export class DistributionService {
         log,
       );
       log(`[Nebula] URL 변환 완료`);
+
+      this._updateFileMetadata(
+        distribution,
+        dto.resourcePacks || [],
+        dto.shaderPacks || [],
+        dto.extraFiles || [],
+        resourcePackSizes,
+        shaderPackSizes,
+        log,
+      );
+      log(`[Nebula] 파일 메타데이터 업데이트 완료`);
 
       return distribution;
     } catch (error) {
@@ -213,6 +266,77 @@ export class DistributionService {
     return fileUrlMap;
   }
 
+  private async _downloadFiles(
+    serverDir: string,
+    folderName: string,
+    files: Array<{ url: string; tracked: boolean; fileName?: string }>,
+  ): Promise<Map<string, number>> {
+    if (files.length === 0) return new Map();
+
+    const filesDir = path.join(serverDir, 'files', folderName);
+    fs.mkdirSync(filesDir, { recursive: true });
+
+    const fileSizeMap = new Map<string, number>();
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2초
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      let lastError: Error | null = null;
+
+      for (let retry = 0; retry < maxRetries; retry++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+          const response = await fetch(file.url, { signal: controller.signal });
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            console.warn(
+              `[Nebula] 파일 다운로드 실패 (${folderName}): ${file.url} - HTTP ${response.status}`,
+            );
+            continue;
+          }
+
+          let fileName = new URL(file.url).pathname.split('/').pop() || `file-${i}`;
+          // URL 디코딩 (띄어쓰기 등 처리)
+          fileName = decodeURIComponent(fileName);
+          const filePath = path.join(filesDir, fileName);
+
+          const buffer = await response.arrayBuffer();
+          fs.writeFileSync(filePath, Buffer.from(buffer));
+
+          const fileSize = buffer.byteLength;
+          fileSizeMap.set(fileName, fileSize);
+
+          console.log(`[Nebula] 파일 다운로드 (${folderName}): ${fileName} (${fileSize} bytes)`);
+          lastError = null;
+          break; // 성공하면 재시도 루프 탈출
+        } catch (error) {
+          lastError = error as Error;
+          if (retry < maxRetries - 1) {
+            console.warn(
+              `[Nebula] 파일 다운로드 재시도 (${folderName}) - 시도 ${retry + 1}/${maxRetries}: ${file.url}`,
+            );
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          } else {
+            console.error(
+              `[Nebula] 파일 다운로드 최종 실패 (${folderName}): ${file.url}`,
+              error,
+            );
+          }
+        }
+      }
+
+      if (lastError) {
+        console.error(`[Nebula] 파일 다운로드 오류 (${folderName}):`, lastError.message);
+      }
+    }
+
+    return fileSizeMap;
+  }
+
   private _generateEnvFile(
     workspaceDir: string,
     dto: GenerateDistributionDto,
@@ -245,6 +369,12 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
       if (!server.modules) continue;
 
       for (const module of server.modules) {
+        // File 타입 (리소스팩, 쉐이더팩, 기타 파일) → 원본 URL 유지
+        if (module.type === 'File') {
+          // 프론트에서 받은 URL을 그대로 유지 (Modrinth CDN 주소)
+          continue;
+        }
+
         // FabricMod / ForgeMod → 다운로드 시 기록한 Modrinth URL로 변환
         if (module.type === 'FabricMod' || module.type === 'ForgeMod') {
           const artifactUrl: string = module.artifact?.url ?? '';
@@ -428,6 +558,88 @@ HELIOS_DATA_FOLDER=${path.join(os.homedir(), '.helios')}`;
         reject(new Error(`Nebula 명령 실패 (${label}): ${err.message}`)),
       );
     });
+  }
+
+  private _updateFileMetadata(
+    distribution: any,
+    resourcePacks: Array<{ fileName?: string; size?: number; md5?: string; url?: string }>,
+    shaderPacks: Array<{ fileName?: string; size?: number; md5?: string; url?: string }>,
+    extraFiles: Array<{ path?: string; url?: string; tracked?: boolean }>,
+    resourcePackSizes: Map<string, number>,
+    shaderPackSizes: Map<string, number>,
+    log: (...args: any[]) => void,
+  ): void {
+    const allPacks = [...resourcePacks, ...shaderPacks];
+    if (allPacks.length === 0 && extraFiles.length === 0) return;
+
+    if (!distribution.servers || distribution.servers.length === 0) return;
+
+    log(`[Nebula] 업데이트할 파일 목록: ${allPacks.map(p => p.fileName).join(', ')}, 기타파일: ${extraFiles.length}`);
+
+    for (const server of distribution.servers) {
+      if (!server.modules) continue;
+
+      for (const module of server.modules) {
+        if (module.type !== 'File') continue;
+
+        log(`[Nebula] File 모듈 확인: id=${module.id}, name=${module.name}`);
+
+        // 리소스팩/쉐이더팩 매칭
+        const packData = allPacks.find(p => {
+          const matches = p.fileName && (module.id.includes(p.fileName) || module.name === p.fileName);
+          if (matches) {
+            log(`[Nebula] 매칭됨: ${p.fileName}`);
+          }
+          return matches;
+        });
+
+        if (packData) {
+          module.id = packData.fileName;
+          module.name = packData.fileName;
+
+          // 다운로드된 파일의 실제 크기 사용
+          const actualSize = resourcePackSizes.get(packData.fileName!) || shaderPackSizes.get(packData.fileName!);
+          if (actualSize !== undefined) {
+            module.artifact.size = actualSize;
+          }
+
+          if (packData.md5) module.artifact.MD5 = packData.md5;
+
+          // 프론트에서 받은 원본 URL 복원
+          if (packData.url) {
+            module.artifact.url = packData.url;
+          }
+
+          log(`[Nebula] 파일 메타데이터 설정 완료: ${packData.fileName} (size: ${module.artifact.size})`);
+          continue;
+        }
+
+        // 기타 파일 매칭 (path 기반)
+        const extraFileData = extraFiles.find(ef => {
+          const filePath = ef.path || '';
+          const matches = module.id.includes(filePath.replace(/\//g, '-')) || module.artifact?.path === filePath;
+          if (matches) {
+            log(`[Nebula] 기타파일 매칭됨: ${filePath}`);
+          }
+          return matches;
+        });
+
+        if (extraFileData) {
+          const fileName = (extraFileData.path || '').split('/').pop() || module.id;
+          module.id = fileName;
+          module.name = fileName;
+
+          // 프론트에서 받은 원본 URL 복원
+          if (extraFileData.url) {
+            log(`[Nebula] URL 변경 전: ${module.artifact.url}`);
+            module.artifact.url = extraFileData.url;
+            log(`[Nebula] URL 변경 후: ${module.artifact.url}`);
+          }
+
+          log(`[Nebula] 기타파일 메타데이터 설정 완료: ${fileName}`);
+        }
+      }
+    }
   }
 
   private _cleanupWorkspace(workspaceDir: string): void {
